@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,25 +13,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.integration.kafka.config.xml;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+
+import kafka.consumer.Blacklist;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.integration.kafka.support.ConsumerConfiguration;
 import org.springframework.integration.kafka.support.ConsumerMetadata;
 import org.springframework.integration.kafka.support.KafkaConsumerContext;
+import org.springframework.integration.kafka.support.TopicFilterConfiguration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 /**
  * @author Soby Chacko
+ * @author Artem Bilan
  * @since 0.5
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration
-public class KafkaConsumerContextParserTests<K,V> {
+public class KafkaConsumerContextParserTests<K, V> {
 
 	@Autowired
 	private ApplicationContext appContext;
@@ -39,10 +50,15 @@ public class KafkaConsumerContextParserTests<K,V> {
 	@Test
 	@SuppressWarnings("unchecked")
 	public void testConsumerContextConfiguration() {
-		final KafkaConsumerContext<K,V> consumerContext = appContext.getBean("consumerContext", KafkaConsumerContext.class);
+		final KafkaConsumerContext<K, V> consumerContext = appContext.getBean("consumerContext",
+				KafkaConsumerContext.class);
 		Assert.assertNotNull(consumerContext);
-
-		final ConsumerMetadata<K,V> cm = appContext.getBean("consumerMetadata_default1", ConsumerMetadata.class);
-		Assert.assertNotNull(cm);
+		ConsumerConfiguration<K, V> cc = consumerContext.getConsumerConfiguration("default1");
+		ConsumerMetadata<K, V> cm = cc.getConsumerMetadata();
+		assertNotNull(cm);
+		TopicFilterConfiguration topicFilterConfiguration = cm.getTopicFilterConfiguration();
+		assertEquals("foo : 10", topicFilterConfiguration.toString());
+		assertThat(topicFilterConfiguration.getTopicFilter(), Matchers.instanceOf(Blacklist.class));
 	}
+
 }

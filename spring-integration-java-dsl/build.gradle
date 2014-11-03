@@ -5,17 +5,35 @@ apply from: "${rootProject.projectDir}/publish-maven.gradle"
 apply plugin: 'eclipse'
 apply plugin: 'idea'
 
+buildscript {
+	repositories {
+		maven { url 'http://repo.spring.io/plugins-release' }
+	}
+	dependencies {
+		classpath 'org.springframework.build.gradle:spring-io-plugin:0.0.3.RELEASE'
+	}
+}
+
 group = 'org.springframework.integration'
 
 repositories {
-	if (version.endsWith('BUILD-SNAPSHOT')) {
+	if (version.endsWith('BUILD-SNAPSHOT') || project.hasProperty('platformVersion')) {
 		maven { url 'http://repo.spring.io/libs-snapshot' }
 	}
 	maven { url 'http://repo.spring.io/libs-milestone' }
 }
 
+if (project.hasProperty('platformVersion')) {
+	apply plugin: 'spring-io'
+
+	dependencies {
+		springIoVersions "io.spring.platform:platform-versions:${platformVersion}@properties"
+	}
+}
+
 compileJava {
 	sourceCompatibility = 1.6
+	targetCompatibility = 1.6
 }
 
 compileTestJava {
@@ -23,14 +41,17 @@ compileTestJava {
 }
 
 ext {
-	activeMqVersion = '5.9.0'
-	embedMongoVersion = '1.45'
-	jacocoVersion = '0.7.0.201403182114'
+	activeMqVersion = '5.10.0'
+	apacheSshdVersion = '0.10.1'
+	embedMongoVersion = '1.46.0'
+	ftpServerVersion = '1.0.6'
+	hsqldbVersion = '2.3.2'
+	jacocoVersion = '0.7.1.201405082137'
 	jmsApiVersion = '1.1-rev-1'
-	log4jVersion = '1.2.17'
-	slf4jVersion = '1.7.6'
-	springIntegrationVersion = '4.0.2.RELEASE'
-	springBootVersion = '1.1.0.RELEASE'
+	mailVersion = '1.4.7'
+	slf4jVersion = '1.7.7'
+	springIntegrationVersion = '4.0.4.RELEASE'
+	springBootVersion = '1.1.8.RELEASE'
 
 	linkHomepage = 'https://github.com/spring-projects/spring-integration-extensions'
 	linkCi = 'https://build.spring.io/browse/INTEXT'
@@ -76,17 +97,24 @@ dependencies {
 		compile("org.springframework.integration:$it:$springIntegrationVersion", optional)
 	}
 	compile ("javax.jms:jms-api:$jmsApiVersion", provided)
+	compile ("javax.mail:javax.mail-api:$mailVersion", provided)
 
 	testCompile "org.springframework.integration:spring-integration-test:$springIntegrationVersion"
 	testCompile "de.flapdoodle.embed:de.flapdoodle.embed.mongo:$embedMongoVersion"
+	testCompile "org.apache.ftpserver:ftpserver-core:$ftpServerVersion"
+	testCompile "org.apache.sshd:sshd-core:$apacheSshdVersion"
 	testCompile "org.springframework.boot:spring-boot-autoconfigure:$springBootVersion"
 
-	testRuntime "org.slf4j:jcl-over-slf4j:$slf4jVersion"
 	testRuntime "org.slf4j:slf4j-log4j12:$slf4jVersion"
 	testRuntime("org.apache.activemq:activemq-broker:$activeMqVersion")
 	testRuntime("org.apache.activemq:activemq-kahadb-store:$activeMqVersion") {
 		exclude group: "org.springframework"
 	}
+	testRuntime "com.sun.mail:javax.mail:$mailVersion"
+	testRuntime "com.sun.mail:smtp:$mailVersion"
+	testRuntime "com.sun.mail:pop3:$mailVersion"
+	testRuntime "com.sun.mail:imap:$mailVersion"
+	testRuntime "org.hsqldb:hsqldb:$hsqldbVersion"
 
 	jacoco "org.jacoco:org.jacoco.agent:$jacocoVersion:runtime"
 }

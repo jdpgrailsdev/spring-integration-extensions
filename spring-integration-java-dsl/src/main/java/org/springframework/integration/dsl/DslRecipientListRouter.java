@@ -23,6 +23,7 @@ import java.util.Map;
 
 import org.springframework.beans.BeansException;
 import org.springframework.integration.core.MessageSelector;
+import org.springframework.integration.dsl.support.MessageChannelReference;
 import org.springframework.integration.filter.ExpressionEvaluatingSelector;
 import org.springframework.integration.router.RecipientListRouter;
 import org.springframework.messaging.MessageChannel;
@@ -38,24 +39,29 @@ class DslRecipientListRouter extends RecipientListRouter {
 
 	private final Map<String, MessageSelector> selectorRecipientMap = new HashMap<String, MessageSelector>();
 
-	void addRecipient(String channelName, String expression) {
+	private final Map<MessageChannel, String> channelExpressionRecipientMap = new HashMap<MessageChannel, String>();
+
+	private final Map<MessageChannel, MessageSelector> channelSelectorRecipientMap =
+			new HashMap<MessageChannel, MessageSelector>();
+
+	void add(String channelName, String expression) {
 		this.expressionRecipientMap.put(channelName, expression);
 	}
 
-	void addRecipient(String channelName, MessageSelector selector) {
+	void add(String channelName, MessageSelector selector) {
 		this.selectorRecipientMap.put(channelName, selector);
 	}
 
-	Map<String, Object> getRecipients() {
-		Map<String, Object> recipients =
-				new HashMap<String, Object>(this.expressionRecipientMap.size() + this.selectorRecipientMap.size());
-		recipients.putAll(this.expressionRecipientMap);
-		recipients.putAll(this.selectorRecipientMap);
-		return recipients;
+	void add(MessageChannel channel, String expression) {
+		this.channelExpressionRecipientMap.put(channel, expression);
+	}
+
+	void add(MessageChannel channel, MessageSelector selector) {
+		this.channelSelectorRecipientMap.put(channel, selector);
 	}
 
 	@Override
-	public void onInit() {
+	public void onInit() throws Exception {
 		for (Map.Entry<String, String> recipient : this.expressionRecipientMap.entrySet()) {
 			ExpressionEvaluatingSelector selector = null;
 			String expression = recipient.getValue();
@@ -66,24 +72,63 @@ class DslRecipientListRouter extends RecipientListRouter {
 			this.selectorRecipientMap.put(recipient.getKey(), selector);
 		}
 
-		List<Recipient> recipients = new ArrayList<Recipient>(this.selectorRecipientMap.size());
-
-		for (Map.Entry<String, MessageSelector> entry : selectorRecipientMap.entrySet()) {
-			recipients.add(new Recipient(this.resolveChannelName(entry.getKey()), entry.getValue()));
+		for (Map.Entry<MessageChannel, String> recipient : this.channelExpressionRecipientMap.entrySet()) {
+			ExpressionEvaluatingSelector selector = null;
+			String expression = recipient.getValue();
+			if (StringUtils.hasText(expression)) {
+				selector = new ExpressionEvaluatingSelector(expression);
+				selector.setBeanFactory(this.getBeanFactory());
+			}
+			this.channelSelectorRecipientMap.put(recipient.getKey(), selector);
 		}
 
-		this.setRecipients(recipients);
+		List<Recipient> recipients = new ArrayList<Recipient>(this.selectorRecipientMap.size()
+				+ this.channelSelectorRecipientMap.size());
+
+		for (Map.Entry<String, MessageSelector> entry : selectorRecipientMap.entrySet()) {
+			recipients.add(new DslRecipient(new MessageChannelReference(entry.getKey()), entry.getValue()));
+		}
+
+		for (Map.Entry<MessageChannel, MessageSelector> entry : channelSelectorRecipientMap.entrySet()) {
+			recipients.add(new Recipient(entry.getKey(), entry.getValue()));
+		}
+
+		setRecipients(recipients);
 		super.onInit();
 	}
 
-	private MessageChannel resolveChannelName(String channelName) {
-		try {
-			return this.getBeanFactory().getBean(channelName, MessageChannel.class);
+
+	class DslRecipient extends Recipient {
+
+		private volatile MessageChannel channel;
+
+		DslRecipient(MessageChannelReference channel, MessageSelector selector) {
+			super(channel, selector);
 		}
-		catch (BeansException e) {
-			throw new DestinationResolutionException("Failed to look up MessageChannel with name '"
-					+ channelName + "' in the BeanFactory.");
+
+		@Override
+		public MessageChannel getChannel() {
+			if (this.channel == null) {
+				synchronized (this) {
+					if (this.channel == null) {
+						this.channel = resolveChannelName((MessageChannelReference) super.getChannel());
+					}
+				}
+			}
+			return this.channel;
 		}
+
+		private MessageChannel resolveChannelName(MessageChannelReference channelReference) {
+			String channelName = channelReference.getName();
+			try {
+				return DslRecipientListRouter.this.getBeanFactory().getBean(channelName, MessageChannel.class);
+			}
+			catch (BeansException e) {
+				throw new DestinationResolutionException("Failed to look up MessageChannel with name '"
+						+ channelName + "' in the BeanFactory.");
+			}
+		}
+
 	}
 
 }

@@ -20,10 +20,13 @@ import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
 
 import org.springframework.integration.dsl.core.MessageHandlerSpec;
-import org.springframework.integration.dsl.support.ComponentConfigurer;
+import org.springframework.integration.dsl.support.Consumer;
+import org.springframework.integration.dsl.support.Function;
+import org.springframework.integration.dsl.support.FunctionExpression;
 import org.springframework.integration.jms.JmsHeaderMapper;
 import org.springframework.integration.jms.JmsSendingMessageHandler;
 import org.springframework.jms.core.JmsTemplate;
+import org.springframework.messaging.Message;
 import org.springframework.util.Assert;
 
 /**
@@ -67,6 +70,11 @@ public class JmsOutboundChannelAdapterSpec<S extends JmsOutboundChannelAdapterSp
 		return _this();
 	}
 
+	public <P> S destination(Function<Message<P>, ?> destinationFunction) {
+		this.target.setDestinationExpression(new FunctionExpression<Message<P>>(destinationFunction));
+		return _this();
+	}
+
 	@Override
 	protected JmsSendingMessageHandler doGet() {
 		return null;
@@ -79,9 +87,9 @@ public class JmsOutboundChannelAdapterSpec<S extends JmsOutboundChannelAdapterSp
 			super(connectionFactory);
 		}
 
-		public JmsOutboundChannelSpecTemplateAware configureJmsTemplate(ComponentConfigurer<JmsTemplateSpec> configurer) {
+		public JmsOutboundChannelSpecTemplateAware configureJmsTemplate(Consumer<JmsTemplateSpec> configurer) {
 			Assert.notNull(configurer);
-			configurer.configure(this.jmsTemplateSpec);
+			configurer.accept(this.jmsTemplateSpec);
 			return _this();
 		}
 

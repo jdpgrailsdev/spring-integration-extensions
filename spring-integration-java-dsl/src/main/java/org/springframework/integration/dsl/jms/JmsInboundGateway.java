@@ -40,7 +40,6 @@ public class JmsInboundGateway extends MessagingGatewaySupport implements
 			ChannelPublishingJmsMessageListener listener) {
 		this.endpoint = new JmsMessageDrivenEndpoint(listenerContainer, listener);
 		this.listener = listener;
-
 	}
 
 	@Override
@@ -75,7 +74,7 @@ public class JmsInboundGateway extends MessagingGatewaySupport implements
 
 	@Override
 	public String getComponentType() {
-		return "jms:message-driven-channel-adapter";
+		return "jms:inbound-gateway";
 	}
 
 	@Override
@@ -88,6 +87,7 @@ public class JmsInboundGateway extends MessagingGatewaySupport implements
 	public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
 		super.setApplicationContext(applicationContext);
 		this.endpoint.setApplicationContext(applicationContext);
+		this.endpoint.setBeanFactory(applicationContext);
 		this.listener.setBeanFactory(applicationContext);
 	}
 

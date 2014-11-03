@@ -25,15 +25,20 @@ import org.springframework.integration.aggregator.ReleaseStrategy;
 import org.springframework.integration.config.CorrelationStrategyFactoryBean;
 import org.springframework.integration.config.ReleaseStrategyFactoryBean;
 import org.springframework.integration.dsl.core.MessageHandlerSpec;
+import org.springframework.integration.dsl.support.Function;
+import org.springframework.integration.dsl.support.FunctionExpression;
 import org.springframework.integration.expression.ValueExpression;
+import org.springframework.integration.store.MessageGroup;
 import org.springframework.integration.store.MessageGroupStore;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.util.StringUtils;
 
 /**
  * @author Artem Bilan
  */
-public abstract class CorrelationHandlerSpec<S extends CorrelationHandlerSpec<S, H>, H extends AbstractCorrelatingMessageHandler>
+public abstract class
+		CorrelationHandlerSpec<S extends CorrelationHandlerSpec<S, H>, H extends AbstractCorrelatingMessageHandler>
 		extends MessageHandlerSpec<S, H> {
 
 	protected MessageGroupStore messageStore;
@@ -74,8 +79,13 @@ public abstract class CorrelationHandlerSpec<S extends CorrelationHandlerSpec<S,
 		return _this();
 	}
 
-	public S groupTimeoutExpression(String expression) {
-		this.groupTimeoutExpression = PARSER.parseExpression(expression);
+	public S groupTimeoutExpression(String groupTimeoutExpression) {
+		this.groupTimeoutExpression = PARSER.parseExpression(groupTimeoutExpression);
+		return _this();
+	}
+
+	public S groupTimeout(Function<MessageGroup, Long> groupTimeoutFunction) {
+		this.groupTimeoutExpression = new FunctionExpression<MessageGroup>(groupTimeoutFunction);
 		return _this();
 	}
 
@@ -96,7 +106,7 @@ public abstract class CorrelationHandlerSpec<S extends CorrelationHandlerSpec<S,
 
 	public S processor(Object target, String methodName) {
 		try {
-			return this.correlationStrategy(new CorrelationStrategyFactoryBean(target, methodName).getObject())
+			return correlationStrategy(new CorrelationStrategyFactoryBean(target, methodName).getObject())
 					.releaseStrategy(new ReleaseStrategyFactoryBean(target, methodName).getObject());
 		}
 		catch (Exception e) {
@@ -105,7 +115,7 @@ public abstract class CorrelationHandlerSpec<S extends CorrelationHandlerSpec<S,
 	}
 
 	public S correlationExpression(String correlationExpression) {
-		return this.correlationStrategy(new ExpressionEvaluatingCorrelationStrategy(correlationExpression));
+		return correlationStrategy(new ExpressionEvaluatingCorrelationStrategy(correlationExpression));
 	}
 
 	public S correlationStrategy(Object target, String methodName) {
@@ -123,7 +133,7 @@ public abstract class CorrelationHandlerSpec<S extends CorrelationHandlerSpec<S,
 	}
 
 	public S releaseExpression(String releaseExpression) {
-		return this.releaseStrategy(new ExpressionEvaluatingReleaseStrategy(releaseExpression));
+		return releaseStrategy(new ExpressionEvaluatingReleaseStrategy(releaseExpression));
 	}
 
 	public S releaseStrategy(Object target, String methodName) {
@@ -144,7 +154,9 @@ public abstract class CorrelationHandlerSpec<S extends CorrelationHandlerSpec<S,
 		if (this.discardChannel != null) {
 			handler.setDiscardChannel(this.discardChannel);
 		}
-		handler.setDiscardChannelName(this.discardChannelName);
+		if (StringUtils.hasText(this.discardChannelName)) {
+			handler.setDiscardChannelName(this.discardChannelName);
+		}
 		if (this.messageStore != null) {
 			handler.setMessageStore(this.messageStore);
 		}

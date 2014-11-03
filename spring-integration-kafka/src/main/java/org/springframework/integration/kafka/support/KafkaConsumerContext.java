@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2013 the original author or authors.
+ * Copyright 2002-2014 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,56 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+
 package org.springframework.integration.kafka.support;
 
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.BeanFactory;
-import org.springframework.beans.factory.BeanFactoryAware;
-import org.springframework.beans.factory.ListableBeanFactory;
-import org.springframework.integration.kafka.core.KafkaConsumerDefaults;
-import org.springframework.integration.support.MessageBuilder;
-import org.springframework.messaging.Message;
-
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.integration.kafka.core.KafkaConsumerDefaults;
+import org.springframework.integration.support.MessageBuilder;
+import org.springframework.messaging.Message;
+import org.springframework.util.CollectionUtils;
+
 /**
  * @author Soby Chacko
+ * @author Ilayaperumal Gopinathan
  * @since 0.5
  */
-public class KafkaConsumerContext<K,V>  implements BeanFactoryAware {
-	private Map<String, ConsumerConfiguration<K,V>> consumerConfigurations;
+public class KafkaConsumerContext<K, V> implements DisposableBean {
+	private Map<String, ConsumerConfiguration<K, V>> consumerConfigurations;
+
 	private String consumerTimeout = KafkaConsumerDefaults.CONSUMER_TIMEOUT;
+
 	private ZookeeperConnect zookeeperConnect;
 
-	public Collection<ConsumerConfiguration<K,V>> getConsumerConfigurations() {
-		return consumerConfigurations.values();
-	}
-
-	@Override
-	@SuppressWarnings("unchecked")
-	public void setBeanFactory(final BeanFactory beanFactory) throws BeansException {
-		consumerConfigurations = (Map<String, ConsumerConfiguration<K,V>>)
-				(Object) ((ListableBeanFactory) beanFactory).getBeansOfType(ConsumerConfiguration.class);
-	}
-
-	public Message<Map<String, Map<Integer, List<Object>>>> receive() {
-		final Map<String, Map<Integer, List<Object>>> consumedData = new HashMap<String, Map<Integer, List<Object>>>();
-
-		for (final ConsumerConfiguration<K,V> consumerConfiguration : getConsumerConfigurations()) {
-			final Map<String, Map<Integer, List<Object>>> messages = consumerConfiguration.receive();
-
-			if (messages != null){
-				consumedData.putAll(messages);
-			}
-		}
-		return MessageBuilder.withPayload(consumedData).build();
-	}
-
 	public String getConsumerTimeout() {
-		return consumerTimeout;
+		return this.consumerTimeout;
 	}
 
 	public void setConsumerTimeout(final String consumerTimeout) {
@@ -70,10 +48,43 @@ public class KafkaConsumerContext<K,V>  implements BeanFactoryAware {
 	}
 
 	public ZookeeperConnect getZookeeperConnect() {
-		return zookeeperConnect;
+		return this.zookeeperConnect;
 	}
 
 	public void setZookeeperConnect(final ZookeeperConnect zookeeperConnect) {
 		this.zookeeperConnect = zookeeperConnect;
 	}
+
+	public void setConsumerConfigurations(Map<String, ConsumerConfiguration<K, V>> consumerConfigurations) {
+		this.consumerConfigurations = consumerConfigurations;
+	}
+
+	public Map<String, ConsumerConfiguration<K, V>> getConsumerConfigurations() {
+		return this.consumerConfigurations;
+	}
+
+	public ConsumerConfiguration<K, V> getConsumerConfiguration(String groupId) {
+		return this.consumerConfigurations.get(groupId);
+	}
+
+	public Message<Map<String, Map<Integer, List<Object>>>> receive() {
+		final Map<String, Map<Integer, List<Object>>> consumedData = new HashMap<String, Map<Integer, List<Object>>>();
+
+		for (final ConsumerConfiguration<K, V> consumerConfiguration : getConsumerConfigurations().values()) {
+			final Map<String, Map<Integer, List<Object>>> messages = consumerConfiguration.receive();
+
+			if (!CollectionUtils.isEmpty(messages)) {
+				consumedData.putAll(messages);
+			}
+		}
+		return consumedData.isEmpty() ? null : MessageBuilder.withPayload(consumedData).build();
+	}
+
+	@Override
+	public void destroy() throws Exception {
+		for (ConsumerConfiguration<K, V> config : this.consumerConfigurations.values()) {
+			config.getConsumerConnector().shutdown();
+		}
+	}
+
 }
